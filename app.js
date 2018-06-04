@@ -29,4 +29,4 @@ mongoose.connect('mongodb://localhost:27017/post_magazine');
 var postMagazine = require('./models/postMagazine');
 
 // [CONFIGURE ROUTER]
-var router = require('./routes') (app, postMagazine,postMagazine2, postMagazine3);
+var router = require('./routes') (app, postMagazine);
