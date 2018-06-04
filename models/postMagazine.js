@@ -31,4 +31,5 @@ var postSchema = new Schema({
 		linkUrl: String
 	}]
 });
-module.exports = mongoose.model('postMagazine', postSchema);
+
+module.exports = (area) => mongoose.model(`post_magazine_${area}`, postSchema);

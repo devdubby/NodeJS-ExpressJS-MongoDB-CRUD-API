@@ -2,6 +2,7 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
+var disp = require('./models/disp');
 
 // [CONFIGURE APP TO USE bodyParser]
 app.use(bodyParser.urlencoded({
@@ -26,7 +27,10 @@ db.once('open', function () {
 });
 mongoose.connect('mongodb://localhost:27017/post_magazine');
 
-var postMagazine = require('./models/postMagazine');
+const postMagazine = {};
+for(const area in disp.dispArea) {
+  postMagazine[area] = require('./models/postMagazine')(disp.dispArea[area]);
+}
 
 // [CONFIGURE ROUTER]
 var router = require('./routes') (app, postMagazine);
