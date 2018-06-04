@@ -16,7 +16,7 @@ module.exports = function (app, postMagazine) {
         });
     });
     app.get('/admin', function (req, res) {
-        postMagazine.find(function (err, books) {
+        postMagazine.find(function (err, postmagazines) {
             if (err) return res.status(500).send({
                 error: 'database failure'
             });
