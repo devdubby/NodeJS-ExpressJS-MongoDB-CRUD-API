@@ -2,7 +2,8 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
 var postSchema = new Schema({
-	postId: { type: Number, unique: true, min: 10000001 },
+	_id: Number,
+	postId : { type: Number, unique: true, required: true, min: 10000001 },
 	post: {
 		postTypeCd: Number,
 		dispAreaCd: Number,
@@ -32,4 +33,11 @@ var postSchema = new Schema({
 	}]
 });
 
-module.exports = (area) => mongoose.model(`post_magazine_${area}`, postSchema);
+var postSchemaSeq = new Schema({
+	seq : { type: Number, unique: true, required: true, min: 10000001 }
+});
+
+module.exports = (area) => ({ // 모듈패턴
+	data: mongoose.model(`post_magazine_${area}`, postSchema),
+	seq: mongoose.model(`post_magazine_${area}_seq`, postSchemaSeq, `post_magazine_${area}_seq`)
+})
