@@ -1,138 +1,111 @@
-var disp = require('../models/disp');
+const disp = require('../models/disp');
 
 module.exports = function (app, postMagazine) {
-
-    app.post('/admin', function (req, res) {
-        for (const code of disp.getKeys()) {
-            if (code == req.body.post.dispAreaCd) {
-                postMagazine[code].seq.findOneAndUpdate({}, {$inc: {seq: 1}}, {new: true}, (err, result) => {
-                    if(err) return res.status(500).send({
-                        error: 'database failure'
-                    });
-                    req.body.postId = result.seq;
-                    req.body._id = result.seq;
-                    var mypost = new postMagazine[code].data(req.body);
-                    callback(mypost);
+    app.post('/admin', ({body}, res) => {
+        //promise 구현부(데이터 저장)
+        const getPostMgzSeq = (code) => new Promise((resolve, reject) => {
+            try {
+                postMagazine[code].seq.findOneAndUpdate({}, {$inc: {seq: 1}}, {new: true}, (err, {seq}) => {
+                    if(err) return reject(err);
+                    return resolve(seq);
                 });
+            } catch(err) {
+                return reject(err);
+            }
+        });
+
+        const savePostMgz = (code) => new Promise((resolve, reject) => {
+            try {
+                (new postMagazine[code].data(body))
+                .save((err, res) => {
+                    if(err) return reject(err);
+                    return resolve(res.postId);
+                });
+            } catch(err) {
+                return reject(err);
+            }
+        });
+
+        //promise 호출
+        for (const code of disp.getKeys()) {
+            if (code == body.post.dispAreaCd) {
+                getPostMgzSeq(code)
+                .then((seq) => {
+                    body.postId = seq;
+                    body._id = seq;
+                    savePostMgz(code)
+                    .then((postId) => res.json(postId))
+                    .catch((err) =>  res.status(500).send(console.log(err), { error: 'database failure' }));
+                })
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
             }
         }
-        
-        function callback(mypost) {
-            mypost.save(function (err) {
-                if (err) {
-                    console.error(err);
-                    return res.json({
-                        result: 0
-                    });
-                    return;
-                }
-                return res.json({
-                    result: 1
-                });
+    });
+    //promise 구현부(공통모듈)
+    const postMgz = (collection, methods, query) => new Promise((resolve, reject) => {
+        try {
+            collection[methods](query, (err, result) => {
+                if(err) return reject(err);
+                return resolve(result);
             });
+        } catch(err) {
+            return reject(err);
         }
     });
+
     app.get(['/admin/:dispAreaCd', '/admin'], ({params}, res) => {
-        
-        // disp.getKeys().forEach((code) => console.log(disp.getDispArea(code)) )
-		// console.log(disp.getKeys())
-        // console.log(disp.getSize())
-        // res.send('disp')
-        
+        //promise 호출(전체 읽기)
         if (params && !params.dispAreaCd || '00' === params.dispAreaCd) {
             let total_result = [];
             let i = 0;
             for(const code of disp.getKeys()) {
-                postMagazine[code].data.find((err, result) => {
-                    if(err) return res.status(500).send({
-                        error: 'database failure'
-                    });
-                    total_result = total_result.concat(result);
-                    if(++i === disp.getSize())
-                        return res.send(total_result);
-                });
+                postMgz(postMagazine[code].data, 'find', {})
+                .then((data) => {
+                    total_result = total_result.concat(data);
+                    if(++i === disp.getSize()) return res.send(total_result); // TODO 람다 활용하여 if문 걷어낸다
+                })
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
             }
-        } else {
+        }
+        //promise 호출(영역별 읽기) 
+        else {
             for(const code of disp.getKeys()) {
                 if (code === params.dispAreaCd) {
-                    return test(postMagazine[code].data, 'find', {})
-                    // postMagazine[code].data['find']((err, result) => {
-                    //     if (err) return res.status(500).send({
-                    //         error: 'database failure'
-                    //     });
-                    //     return res.send(result);
-                    // })
+                    postMgz(postMagazine[code].data, 'find', {})
+                    .then((data) => res.send(data))
+                    .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
                 }
             }
         }
-        function test(collection, methods, query) {
-            collection[methods](query, (err, result) => {
-                 if (err) return res.status(500).send({
-                     error: 'database failure'
-                 });
-                 return res.send(result);
-             })
-        }
-        
-        // if (params && !params.dispAreaCd || '00' === params.dispAreaCd) {
-        //     let total_result = [];
-        //     let i = 0;
-        //     for(const area in disp.dispArea) {
-        //         postMagazine[area].find((err, result) => {
-        //             if(err) return res.status(500).send({
-        //                 error: 'database failure'
-        //             });
-        //             total_result = total_result.concat(result);
-        //             if(++i === Object.keys(disp.dispArea).length)
-        //                 return res.send(total_result);
-        //         });
-        //     }
-        // } else {
-        //     for(const area in disp.dispArea) {
-        //         if (area === params.dispAreaCd) {
-        //             console.log(area);
-        //             postMagazine[area].find((err, result) => {
-        //                 if (err) return res.status(500).send({
-        //                     error: 'database failure'
-        //                 });
-        //                 return res.send(result);
-        //             })
-        //         }
-        //     }
-        // }
-
-        // else if (00 == req.params.dispAreaCd || "" == req.params.dispAreaCd) {
-        //     postMagazine[area].find(function (err, result) {
-        //         if (err) return res.status(500).send({
-        //             error: 'database failure'
-        //         });
-        //         total_result = total_result + result;
-        //     })
-        // }
-        // res.send(total_result);
-        // Promise.all(test).then(function (total_result) {
-        //     res.send(total_result);
-        // });
     });
-    app.get('/admin/:postId/quick', function ({params}, res) {
-        for (const area in disp.dispArea) {
-            postMagazine[area].find({ postId: params.postId }, (err, result) => {
-                if (err) return res.status(500).send({
-                    error: 'database failure'
-                });
-                return res.send(result);
+    app.get('/admin/:postId/quick', ({params}, res) => {
+        //promise 호출(postid로 읽기)
+        let i = 0;
+        for (const code of disp.getKeys()) {
+            postMgz(postMagazine[code].data, 'find', { postId: params.postId })
+            .then((data) => {
+                if(data.length && data[0].postId) {
+                    return res.send(data)
+                } else if(++i === disp.getSize()) {
+                    return res.send({ error: 'data not found' })
+                }
             })
+            .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
         }
     });
+    //promise 호출(데이터 삭제)
     app.delete('/admin', ({body}, res) => { // 단일값, 다중값 삭제 테스트
-        for (const area in disp.dispArea) {
-            const query = body.postIds && 0 < body.postIds.length ? {$in: body.postIds } : body.postIds;
-            postMagazine[area].remove({ postId: query }, (err, output) => {
-                if (err) return res.status(500).json({
-                    error: "database failure"
-                });
-                return res.send(output);
+        let i = 0;
+        let cnt = 0;
+        for (const code of disp.getKeys()) {
+            const query = body.postIds && body.postIds.length ? {$in: body.postIds } : body.postIds;
+            postMgz(postMagazine[code].data, 'remove', { postId: query })
+            .then((data) => {
+                cnt += data.n;
+                if(++i === disp.getSize())
+                    return res.send({"deleted": cnt});
             })
-        }
+            .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        } 
     });
 }

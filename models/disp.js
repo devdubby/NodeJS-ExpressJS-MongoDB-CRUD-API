@@ -19,7 +19,6 @@ const disp = () => { // 빈즈패턴
 		getKeys : () => Object.keys(dispArea),
 		getSize : () => Object.keys(dispArea).length
 	}
-}
-;
+};
 
 module.exports = disp();

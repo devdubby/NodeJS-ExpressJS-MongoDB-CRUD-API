@@ -28,7 +28,7 @@ db.once('open', function () {
 mongoose.connect('mongodb://localhost:27017/post_magazine');
 
 const postMagazine = {};
-disp.getKeys().forEach((code) => postMagazine[code] = require('./models/postMagazine')(disp.getDispArea(code)) )
+disp.getKeys().forEach((code) => postMagazine[code] = require('./models/postMagazine')(disp.getDispArea(code)))
 
 // [CONFIGURE ROUTER]
 var router = require('./routes') (app, postMagazine);
