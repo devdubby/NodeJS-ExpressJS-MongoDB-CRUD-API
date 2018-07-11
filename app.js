@@ -4,6 +4,7 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var disp = require('./models/disp');
 
+
 // [CONFIGURE APP TO USE bodyParser]
 app.use(bodyParser.urlencoded({
   extended: true
@@ -32,3 +33,5 @@ disp.getKeys().forEach((code) => postMagazine[code] = require('./models/postMaga
 
 // [CONFIGURE ROUTER]
 var router = require('./routes') (app, postMagazine);
+
+app.use('/uploads', express.static('uploads'));
