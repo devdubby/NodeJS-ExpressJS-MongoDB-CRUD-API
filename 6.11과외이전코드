@@ -1,0 +1,231 @@
+const disp = require('../models/disp');
+
+module.exports = function (app, postMagazine) {
+    //데이터 저장 모듈 구현부
+    const savePostMgz = (code, body) => new Promise((resolve, reject) => {
+        try {
+            (new postMagazine[code].data(body))
+            .save((err, res) => {
+                if(err) return reject(err);
+                return resolve(res.postId);
+            });
+        } catch(err) {
+            return reject(err);
+        }
+    });
+    //쿼리 공통 모듈 구현부
+    const postMgz = (collection, methods, query, field, option) => new Promise((resolve, reject) => {
+        try {
+            collection[methods](query ? query : {}, field ? field : {}, option ? option : {}, (err, result) => {
+                if(err) return reject(err);
+                return resolve(result);
+            });
+        } catch(err) {
+            return reject(err);
+        }
+    });
+    //데이터 생성 ,저장 구현부
+    app.post('/admin', ({body}, res) => {
+        //시퀀스 구현부(_id에 시퀀스 부여)
+        const getPostMgzSeq = (code) => new Promise((resolve, reject) => {
+            try {
+                postMagazine[code].seq.findOneAndUpdate({}, {$inc: {seq: 1}}, {new: true}, (err, {seq}) => {
+                    if(err) return reject(err);
+                    return resolve(seq);
+                });
+            } catch(err) {
+                return reject(err);
+            }
+        });
+        //영역별로 데이터 생성, 저장
+        for (const code of disp.getKeys()) {
+            if (code == body.post.dispAreaCd) {
+                getPostMgzSeq(code)
+                .then((seq) => {
+                    body.postId = seq;
+                    body._id = seq;
+                    body.post.linkUrl = `/posts/${seq}/post`;
+                    savePostMgz(code, body)
+                    .then((postId) => res.json(postId))
+                    .catch((err) =>  res.status(500).send(console.log(err), { error: 'database failure' }));
+                })
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+            }
+        }
+    });
+    
+
+    // /admin/list 는 페이징을 해주려면, 데이터가 어디에 쏠려있을 지 알 수가 없어서 -> 페이징은 영역별에만 넣는다 -> 테스트는 이거만
+    app.get(['/admin/:dispAreaCd/:page/list', '/admin/list'], ({params}, res) => {
+        //promise 호출(전체 읽기)
+        if (params && !params.dispAreaCd || '00' === params.dispAreaCd) {
+            let total_result = [];
+            let i = 0;
+            for(const code of disp.getKeys()) {
+                postMgz(postMagazine[code].data, 'find', {})
+                .then((data) => {
+                    total_result = total_result.concat(data);
+                    if(++i === disp.getSize()) return res.send(total_result); // TODO 람다 활용하여 if문 걷어낸다
+                })
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+            }
+        }
+        //promise 호출(영역별 읽기) 
+        else {
+            for(const code of disp.getKeys()) {
+                if (code === params.dispAreaCd) {
+                    postMgz(postMagazine[code].data, 'find',{}, {},
+                        { sort: {_id: -1}, skip: (params.page ? params.page - 1 : 0)*10, limit: 10 })
+                    .then((data) => res.send(data))
+                    .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+                }
+            }
+        }
+    });
+    app.get('/admin/:postId', ({params}, res) => {
+        //promise 호출(postid로 읽기)
+        let i = 0;
+        for (const code of disp.getKeys()) {
+            postMgz(postMagazine[code].data, 'find', { postId: params.postId })
+            .then((data) => {
+                if(data.length && data[0].postId) {
+                    return res.send(data)
+                } else if(++i === disp.getSize()) {
+                    return res.send({ error: 'data not found' })
+                }
+            })
+            .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        }
+    });
+    //promise 호출(데이터 삭제)
+    app.delete('/admin/:postId', ({params}, res) => { // 단일값, 다중값 삭제 테스트
+        //use_yn 으로 delete 구현(false 이면 삭제)
+        // let i = 0;
+        // for (const code of disp.getKeys()) {
+        //     postMgz(postMagazine[code].data, 'update', {postId:params.postId})
+        //     .then((data) => {
+        //         res.send(data);
+        //         if(++i === disp.getSize()) {
+        //             return res.send({ error: 'data not found' })
+        //         }
+        //     })
+        //     .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        // }
+        //remove 구현
+        let i = 0;
+        let cnt = 0;
+        for (const code of disp.getKeys()) {
+            postMgz(postMagazine[code].data, 'remove', { postId: params.postId })
+            .then((data) => {
+                cnt += data.n;
+                if(++i === disp.getSize())
+                    return res.send({"deleted": cnt});
+            })
+            .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        } 
+        // find -> 찾은걸로 save -> 그거 id 받아서 delete
+        // let i = 0;
+        // let cnt = 0;
+        // for (const code of disp.getKeys()) {
+        //     postMgz(postMagazine[code].data, 'findOne', { postId: params.postId })
+        //     .then((data) => {
+        //         if(data.postId) {
+        //             console.log(data);
+        //             (new postMagazine[code].back(data))
+        //             .save((err, data) => {
+        //                 if(err) return res.send(err);
+        //                 return res.send(data);
+        //             });
+        //         }
+        //     })
+        //     .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+
+        //     // postMgz(postMagazine[code].data, 'remove', { postId: params.postId })
+        //     // .then((data) => {
+        //     //     cnt += data.n;
+        //     //     if(++i === disp.getSize())
+        //     //         return res.send({"deleted": cnt});
+        //     // })
+        //     // .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        // }
+        // ----------------------------------------
+        // const savePostMgztest = (code, data) => new Promise((resolve, reject) => {
+        //     try {
+        //         (new postMagazine[code].back(data))
+        //         .save((err, res) => {
+        //             if(err) return reject(err);
+        //             return resolve(res.postId);
+        //         });
+        //     } catch(err) {
+        //         return reject(err);
+        //     }
+        // });
+        // let i = 0;
+        // for (const code of disp.getKeys()) {
+        //     postMgz(postMagazine[code].data, 'find', { postId: params.postId})
+        //     .then((data) => {
+        //         if(data.length && data[0].postId) {
+        //             console.log(data[0]);
+        //             // savePostMgztest(code, data[0])
+        //             // .then((postId) => res.json(postId))
+        //             // .catch((err) =>  res.status(500).send(console.log(err), { error: 'database failure' }));
+        //         } else if(++i === disp.getSize()) {
+        //             return res.send({ error: 'data not found' })
+        //         }
+        //     })
+        //     .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+        // }
+    });
+
+    //프론트 API
+    app.get('/:dispAreaCd/posts/:postId/post', ({params}, res) => {
+        for(const code of disp.getKeys()) {
+            if (code === params.dispAreaCd) {
+                postMgz(postMagazine[code].data, 'find', {postId:params.postId})
+                .then((data) => res.send(data))
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+            }
+        }
+    });
+    app.get('/:dispAreaCd/posts/:dispCtgCd/list', ({params}, res) => {
+        for(const code of disp.getKeys()) {
+            if (code === params.dispAreaCd) {
+                postMgz(postMagazine[code].data, 'find', {"post.dispCtgCd":params.dispCtgCd})
+                .then((data) => res.send(data))
+                .catch((err) => res.status(500).send(console.log(err), { error: 'database failure' }));
+            }
+        }   
+    });
+
+    //multipart 요청
+    var multer = require('multer');
+    var fs = require('fs'); // 파일시스템 모듈 임포트
+    const storage = multer.diskStorage({
+        destination(req, file, callback) {
+            // 파일의 속성을 보고 디렉토리 분기가능
+            callback(null, './uploads/');
+        },
+        filename(req, file, callback) {
+            // 파일의 속성을 보고 파일명 조건 분기가능
+            callback(null, Date.now() + '-' + file.originalname);
+            // file.uploadedFile = {
+            //     name: req.params.filename,
+            //     ext: file.mimetype.split('/')[1]
+            // };
+            // callback(null, Date.now() + '-' + file.uploadedFile.name + '.' + file.uploadedFile.ext);
+        }
+    });
+    const upload = multer({storage: storage});
+    
+    // 미들웨어가 req 객체에 file이라는 프로퍼티를 추가해준다
+    // 밑에 인자로 들어가는 test는 form에서 던진 태그의 name
+    app.post('/admin/upload', upload.single('test'), ({file}, res) => {
+        console.log('req.file', file);
+        console.log('file.size : ', file.size);
+        if((file.mimetype === 'image/png' || file.mimetype === 'image/jpeg' || file.mimetype === 'image/bmp') && file.size <= 1000000)
+            res.send('/uploads/' + file.filename);
+        else
+            res.send("failed");
+    });
+
+}
