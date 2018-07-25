@@ -1,30 +1,20 @@
-var upload = function (req, res) {
-  var deferred = Q.defer();
-  var imagePath = "../uploads";
-  var storage = multer.diskStorage({
-    // 서버에 저장할 폴더
-    destination: function (req, file, cb) {
-      cb(null, imagePath);
+//multipart request 구현부
+var multer = require('multer');
+var fs = require('fs'); // 파일시스템 모듈 임포트
+const storage = multer.diskStorage({
+    destination(req, file, callback) {
+        // 파일의 속성을 보고 디렉토리 분기가능
+        callback(null, './uploads/');
     },
-
-    // 서버에 저장할 파일 명
-    filename: function (req, file, cb) {
-      file.uploadedFile = {
-        name: req.params.filename,
-        ext: file.mimetype.split('/')[1]
-      };
-      cb(null, file.uploadedFile.name + '.' + file.uploadedFile.ext);
+    filename(req, file, callback) {
+        // 파일의 속성을 보고 파일명 조건 분기가능
+        callback(null, Date.now() + '-' + file.originalname);
+        // file.uploadedFile = {
+        //     name: req.params.filename,
+        //     ext: file.mimetype.split('/')[1]
+        // };
+        // callback(null, Date.now() + '-' + file.uploadedFile.name + '.' + file.uploadedFile.ext);
     }
-  });
-
-  var upload = multer({
-    storage: storage
-  }).single('file');
-  upload(req, res, function (err) {
-    if (err) deferred.reject();
-    else deferred.resolve(req.file.uploadedFile);
-  });
-  return deferred.promise;
-};
-
-module.exports = upload(req ,res);
+});
+const upload = multer({storage: storage});
+module.exports = upload;
