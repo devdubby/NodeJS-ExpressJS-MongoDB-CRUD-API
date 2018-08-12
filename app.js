@@ -2,7 +2,7 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
-var disp = require('./models/disp');
+var disp = require('./models/dispAreaModel');
 
 
 // [CONFIGURE APP TO USE bodyParser]
@@ -29,7 +29,7 @@ db.once('open', function () {
 mongoose.connect('mongodb://localhost:27017/post_magazine');
 
 const postMagazine = {};
-disp.getKeys().forEach((code) => postMagazine[code] = require('./models/postMagazine')(disp.getDispArea(code)))
+disp.getKeys().forEach((code) => postMagazine[code] = require('./models/postMgzModel')(disp.getDispArea(code)))
 
 // [CONFIGURE ROUTER]
 var router = require('./routes') (app, postMagazine);
